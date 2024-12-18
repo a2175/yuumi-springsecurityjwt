@@ -61,6 +61,15 @@ public class JWTFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 토큰 ip와 요청 ip가 같은지 확인 (발급시 페이로드에 명시)
+        String tokenIp = jwtUtil.getIp(accessToken);
+        String requestIp = getClientIp(request);
+        if (!requestIp.equals(tokenIp)) {
+            //response status code
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
+
         // username, role 값을 획득
         String username = jwtUtil.getUsername(accessToken);
         String role = jwtUtil.getRole(accessToken);
@@ -74,5 +83,20 @@ public class JWTFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authToken);
 
         filterChain.doFilter(request, response);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();  // 프록시가 없는 경우
+        }
+
+        // 다중 IP 처리 (프록시 체인)
+        if (ip.contains(",")) {
+            ip = ip.split(",")[0].trim();  // 첫 번째 IP가 실제 클라이언트 IP
+        }
+
+        return ip;
     }
 }

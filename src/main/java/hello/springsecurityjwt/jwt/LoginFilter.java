@@ -59,10 +59,11 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
         Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
         GrantedAuthority auth = iterator.next();
         String role = auth.getAuthority();
+        String ip = getClientIp(request);
 
         //토큰 생성
-        String access = jwtUtil.createJwt("access", username, role, 600000L);
-        String refresh = jwtUtil.createJwt("refresh", username, role, 86400000L);
+        String access = jwtUtil.createJwt("access", username, role, ip, 600000L);
+        String refresh = jwtUtil.createJwt("refresh", username, role, ip, 86400000L);
 
         //Refresh 토큰 저장
         addRefreshEntity(username, refresh, 86400000L);
@@ -103,5 +104,20 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
         cookie.setHttpOnly(true);
 
         return cookie;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();  // 프록시가 없는 경우
+        }
+
+        // 다중 IP 처리 (프록시 체인)
+        if (ip.contains(",")) {
+            ip = ip.split(",")[0].trim();  // 첫 번째 IP가 실제 클라이언트 IP
+        }
+
+        return ip;
     }
 }

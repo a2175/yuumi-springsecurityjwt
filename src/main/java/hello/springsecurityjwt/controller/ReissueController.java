@@ -54,6 +54,15 @@ public class ReissueController {
             return new ResponseEntity<>("invalid refresh token", HttpStatus.BAD_REQUEST);
         }
 
+        // 토큰 ip와 요청 ip가 같은지 확인 (발급시 페이로드에 명시)
+        String tokenIp = jwtUtil.getIp(refresh);
+        String requestIp = getClientIp(request);
+        if (!requestIp.equals(tokenIp)) {
+            //response status code
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return new ResponseEntity<>("invalid refresh token", HttpStatus.BAD_REQUEST);
+        }
+
         //DB에 저장되어 있는지 확인
         Boolean isExist = refreshRepository.existsByRefresh(refresh);
         if (!isExist) {
@@ -65,8 +74,8 @@ public class ReissueController {
         String role = jwtUtil.getRole(refresh);
 
         //make new JWT
-        String newAccess = jwtUtil.createJwt("access", username, role, 600000L);
-        String newRefresh = jwtUtil.createJwt("refresh", username, role, 86400000L);
+        String newAccess = jwtUtil.createJwt("access", username, role, requestIp, 600000L);
+        String newRefresh = jwtUtil.createJwt("refresh", username, role, requestIp, 86400000L);
 
         //Refresh 토큰 저장 DB에 기존의 Refresh 토큰 삭제 후 새 Refresh 토큰 저장
         refreshRepository.deleteByRefresh(refresh);
@@ -100,5 +109,20 @@ public class ReissueController {
         cookie.setHttpOnly(true);
 
         return cookie;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();  // 프록시가 없는 경우
+        }
+
+        // 다중 IP 처리 (프록시 체인)
+        if (ip.contains(",")) {
+            ip = ip.split(",")[0].trim();  // 첫 번째 IP가 실제 클라이언트 IP
+        }
+
+        return ip;
     }
 }
